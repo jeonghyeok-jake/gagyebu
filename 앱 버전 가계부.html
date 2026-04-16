@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우리집 가계부</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif; background: #f5f7fb; color: #1f2937; }
+    .app { max-width: 520px; margin: 0 auto; min-height: 100vh; }
+    .tab-bar { display: flex; background: #fff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 10; }
+    .tab-btn { flex: 1; padding: 13px 4px; text-align: center; font-size: 12px; font-weight: 500; color: #9ca3af; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .tab-btn.active { color: #6366f1; border-bottom-color: #6366f1; }
+    .tab-content { display: none; padding: 14px; }
+    .tab-content.active { display: block; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1f2937; }
+
+    .who-toggle { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+    .who-btn { padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: 500; cursor: pointer; color: #6b7280; text-align: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .who-btn.active-me { background: #eff6ff; border-color: #6366f1; color: #3730a3; }
+    .who-btn.active-wife { background: #fdf2f8; border-color: #ec4899; color: #9d174d; }
+    .who-btn.active-common { background: #f0fdf4; border-color: #10b981; color: #065f46; }
+
+    .type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+    .type-btn { padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; font-size: 14px; font-weight: 500; cursor: pointer; color: #6b7280; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .type-btn.income.active { background: #ecfdf5; border-color: #10b981; color: #065f46; }
+    .type-btn.expense.active { background: #fef2f2; border-color: #ef4444; color: #991b1b; }
+
+    .form-row { margin-bottom: 10px; }
+    .form-row label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+    .form-row input, .form-row select { width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: #fff; }
+    .submit-btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .submit-btn.income { background: #10b981; }
+    .submit-btn.expense { background: #ef4444; }
+
+    /* 3인 요약 그리드 */
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+    .summary-section { background: #f9fafb; border-radius: 8px; padding: 10px; }
+    .summary-section .who-lbl { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+    .summary-section .row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+    .summary-section .row .val { font-weight: 600; }
+    .summary-section .balance-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; border-top: 1px solid #e5e7eb; padding-top: 5px; margin-top: 4px; }
+
+    .filter-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .pill-btn { padding: 4px 12px; font-size: 12px; border-radius: 20px; border: 1px solid #d1d5db; background: white; color: #6b7280; cursor: pointer; font-weight: 500; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .pill-btn.active { background: #6366f1; border-color: #6366f1; color: white; }
+
+    .tx-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid #f3f4f6; }
+    .tx-item:last-child { border-bottom: none; }
+    .tx-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .tx-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .tx-info { min-width: 0; }
+    .tx-desc { font-size: 13px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .tx-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .tx-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .tx-amount { font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .del-btn { background: none; border: none; color: #d1d5db; cursor: pointer; font-size: 16px; padding: 2px 4px; line-height: 1; }
+    .del-btn:hover { color: #ef4444; }
+    .who-tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+    .who-tag.me { background: #eff6ff; color: #3730a3; }
+    .who-tag.wife { background: #fdf2f8; color: #9d174d; }
+    .who-tag.common { background: #f0fdf4; color: #065f46; }
+    .cat-tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 500; background: #f3f4f6; color: #6b7280; white-space: nowrap; }
+    .empty { text-align: center; color: #9ca3af; padding: 30px; font-size: 14px; }
+
+    /* 명세서 업로드 */
+    .upload-zone { border: 2px dashed #d1d5db; border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; margin-bottom: 10px; }
+    .upload-zone:hover { border-color: #6366f1; }
+    .upload-zone input { display: none; }
+    .upload-btn-lbl { display: inline-block; background: #6366f1; color: white; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 5px; }
+    .upload-hint { font-size: 11px; color: #9ca3af; }
+    .uploaded-files { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .uploaded-file { display: flex; justify-content: space-between; align-items: center; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+    .file-name { font-weight: 500; color: #1f2937; }
+    .file-meta { color: #9ca3af; font-size: 11px; }
+    .file-remove { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 16px; }
+    .analyze-btn { width: 100%; padding: 11px; border: none; border-radius: 8px; background: #6366f1; color: white; font-size: 14px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .analyze-btn:disabled { background: #c7d2fe; cursor: not-allowed; }
+    .error { color: #ef4444; font-size: 12px; margin-top: 6px; }
+
+    .period-badge { display: inline-block; background: #eff6ff; color: #3730a3; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .stat-item { background: #f9fafb; border-radius: 8px; padding: 12px; }
+    .stat-lbl { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+    .stat-val { font-size: 16px; font-weight: 700; }
+    .legend { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 10px; }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6b7280; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .cat-bars { display: flex; flex-direction: column; gap: 8px; }
+    .cat-bar-row { display: flex; align-items: center; gap: 8px; }
+    .cat-bar-label { font-size: 12px; color: #374151; min-width: 90px; }
+    .cat-bar-bg { flex: 1; height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 3px; }
+    .cat-bar-amt { font-size: 11px; color: #6b7280; min-width: 65px; text-align: right; white-space: nowrap; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    th { text-align: left; background: #f9fafb; border-bottom: 1px solid #e5e7eb; padding: 8px 6px; color: #6b7280; font-size: 11px; font-weight: 600; }
+    td { border-bottom: 1px solid #f3f4f6; padding: 8px 6px; vertical-align: middle; }
+    th:nth-child(1), td:nth-child(1) { width: 72px; }
+    th:nth-child(2), td:nth-child(2) { overflow-wrap: break-word; word-break: keep-all; }
+    th:nth-child(3), td:nth-child(3) { width: 70px; }
+    th:nth-child(4), td:nth-child(4) { width: 66px; text-align: right; }
+    .badge { display: inline-block; padding: 2px 5px; border-radius: 6px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .question-badge { display: inline-block; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 700; background: #fef3c7; color: #92400e; cursor: pointer; white-space: nowrap; }
+    .question-badge:hover { background: #fde68a; }
+    .amt-cell { text-align: right; font-weight: 600; white-space: nowrap; }
+
+    /* 카테고리 선택 모달 */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: flex-end; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: #fff; border-radius: 16px 16px 0 0; padding: 20px; width: 100%; max-width: 520px; max-height: 60vh; overflow-y: auto; }
+    .modal-title { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: #1f2937; }
+    .modal-store { font-size: 12px; color: #6b7280; margin-bottom: 12px; }
+    .cat-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cat-option { padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; cursor: pointer; text-align: center; background: #fff; }
+    .cat-option:hover { background: #f5f3ff; border-color: #6366f1; color: #4338ca; }
+
+    .chart-container { position: relative; width: 100%; height: 220px; margin-bottom: 16px; }
+    .no-data { text-align: center; color: #9ca3af; padding: 40px; font-size: 14px; }
+
+    .who-stat-toggle { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab(0)">기록</button>
+    <button class="tab-btn" onclick="switchTab(1)">명세서</button>
+    <button class="tab-btn" onclick="switchTab(2)">월별통계</button>
+  </div>
+
+  <!-- 탭1: 수입/지출 기록 -->
+  <div class="tab-content active" id="tab0">
+    <div class="card">
+      <div class="who-toggle">
+        <button class="who-btn active-me" id="who-me" onclick="setWho('me')">jake</button>
+        <button class="who-btn" id="who-wife" onclick="setWho('wife')">nyozi</button>
+        <button class="who-btn" id="who-common" onclick="setWho('common')">공통</button>
+      </div>
+      <div class="type-toggle">
+        <button class="type-btn income active" id="btn-income" onclick="setType('income')">+ 수입</button>
+        <button class="type-btn expense" id="btn-expense" onclick="setType('expense')">- 지출</button>
+      </div>
+      <div class="form-row"><label>금액 (원)</label><input type="number" id="input-amount" placeholder="50000"></div>
+      <div class="form-row"><label>적요</label><input type="text" id="input-desc" placeholder="예) 점심식사, 월급"></div>
+      <div class="form-row">
+        <label>카테고리</label>
+        <select id="input-category">
+          <option value="">카테고리 선택</option>
+          <option>식비/외식</option><option>카페/베이커리</option><option>교통</option>
+          <option>온라인쇼핑</option><option>대형마트</option><option>편의점</option>
+          <option>의료/건강</option><option>문화/여가</option><option>미용</option>
+          <option>생활</option><option>수입</option><option>기타</option>
+        </select>
+      </div>
+      <div class="form-row"><label>날짜</label><input type="date" id="input-date"></div>
+      <button class="submit-btn income" id="submit-btn" onclick="addTransaction()">추가하기</button>
+    </div>
+
+    <div class="card">
+      <h2>요약</h2>
+      <div class="summary-grid" id="summaryGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="filter-row">
+        <button class="pill-btn active" onclick="setWhoFilter('all',this)">전체</button>
+        <button class="pill-btn" onclick="setWhoFilter('me',this)">jake</button>
+        <button class="pill-btn" onclick="setWhoFilter('wife',this)">nyozi</button>
+        <button class="pill-btn" onclick="setWhoFilter('common',this)">공통</button>
+      </div>
+      <div id="tx-list"><div class="empty">아직 내역이 없어요</div></div>
+    </div>
+  </div>
+
+  <!-- 탭2: 명세서 분석 -->
+  <div class="tab-content" id="tab1">
+    <div class="card">
+      <h2>명세서 업로드</h2>
+      <div class="who-toggle">
+        <button class="who-btn active-me" id="stat-who-me" onclick="setStatWho('me')">jake</button>
+        <button class="who-btn" id="stat-who-wife" onclick="setStatWho('wife')">nyozi</button>
+        <button class="who-btn" id="stat-who-common" onclick="setStatWho('common')">공통</button>
+      </div>
+      <label class="upload-zone">
+        <input type="file" id="fileInput" accept=".xls,.xlsx,.html" multiple>
+        <div class="upload-btn-lbl">파일 선택 (복수 가능)</div>
+        <div class="upload-hint">현대카드 xls · 여러 파일 동시 선택 가능</div>
+      </label>
+      <div class="uploaded-files" id="uploadedFiles"></div>
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyzeAll()" disabled>분석하기</button>
+      <div class="error" id="errorMsg"></div>
+    </div>
+
+    <div id="analysis-result" style="display:none">
+      <div class="card">
+        <h2>요약</h2>
+        <div id="periodBadges" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+      <div class="card">
+        <h2>카테고리별 지출</h2>
+        <div class="legend" id="chartLegend"></div>
+        <div style="position:relative;height:200px;margin-bottom:14px;"><canvas id="donut" role="img" aria-label="카테고리별 지출 도넛차트"></canvas></div>
+        <div class="cat-bars" id="catBars"></div>
+      </div>
+      <div class="card">
+        <h2>전체 내역 <span style="font-size:11px;color:#f59e0b;font-weight:400;">⚠ ? 뱃지를 눌러 카테고리를 직접 지정할 수 있어요</span></h2>
+        <div class="filter-row" id="filterBtns"></div>
+        <div style="overflow-x:auto">
+          <table><thead><tr><th>날짜</th><th>가맹점</th><th>카테고리</th><th class="amt-cell">금액</th></tr></thead>
+          <tbody id="txBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 탭3: 월별 통계 -->
+  <div class="tab-content" id="tab2">
+    <div class="card">
+      <h2>월별 지출 추이</h2>
+      <div class="who-stat-toggle">
+        <button class="who-btn active-me" onclick="setStatWhoFilter('all',this)">전체</button>
+        <button class="who-btn" onclick="setStatWhoFilter('me',this)">jake</button>
+        <button class="who-btn" onclick="setStatWhoFilter('wife',this)">nyozi</button>
+      </div>
+      <div class="chart-container"><canvas id="monthlyChart" role="img" aria-label="월별 지출 막대차트"></canvas></div>
+      <div class="no-data" id="monthlyNoData" style="display:none">명세서를 먼저 업로드해주세요</div>
+    </div>
+    <div class="card">
+      <h2>카테고리별 추이</h2>
+      <div class="filter-row" id="catFilterBtns"></div>
+      <div class="chart-container"><canvas id="catTrendChart" role="img" aria-label="카테고리별 월별 추이 라인차트"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- 카테고리 선택 모달 -->
+<div class="modal-overlay" id="catModal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">카테고리 직접 선택</div>
+    <div class="modal-store" id="modalStore"></div>
+    <div class="cat-options" id="catOptions"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#6b7280','#84cc16','#06b6d4'];
+const ALL_CATS = ['식비/외식','카페/베이커리','교통','온라인쇼핑','대형마트','편의점','의료/건강','문화/여가','미용','생활','기타'];
+
+const RULES = {
+  '식비/외식': ['식당','치킨','피자','분식','한식','중식','일식','스시','초밥','횟집','라멘','우동','소바','돈가스','샤브','회','삼겹','갈비','곱창','막창','찜닭','닭갈비','아구','조개','굴','낙지','오리','보쌈','족발','김밥','분식','도시락','죽','국밥','설렁탕','해장국','순대국','부대찌개','찌개','된장','순두부','냉면','막국수','쫄면','떡볶이','순대','오뎅','어묵','고깃집','구이','포차','호프','술집','이자카야','배달의민족','요기요','쿠팡이츠','두두','꽃낙','아맘','쑥꿀레','파이브가이즈','버거','맥도날드','롯데리아','버거킹','맘스터치','서브웨이','쉐이크쉑','노브랜드버거','도미노','피자헛','파파존스','멸치','밥상','보쌈','국수','면','솥밥','정식','식사','밥','렉식','식','레스토랑','비스트로','브런치','다이닝'],
+  '카페/베이커리': ['커피','카페','스타벅스','투썸','메가커피','컴포즈','이디야','빽다방','할리스','파스쿠찌','탐앤탐스','커피빈','폴바셋','블루보틀','% arabica','아라비카','베이커리','제과','빵','파리바게뜨','뚜레쥬르','브레댄코','아우어베이커리','레망도레','르뱅','르아','몽슈슈','마카롱','디저트','케이크','도넛','던킨','크리스피','클럽드바리스타','바리스타','로스터리','브루잉','드립','핸드드립','라떼','에스프레소','아메리카노','밀크티','버블티','공차','쥬씨','요거트','아이스크림','배스킨','나뚜루','하겐다즈','소프트리','밀키스','빙수'],
+  '교통': ['택시','카카오t','우버','타다','버스','지하철','철도','ktx','srt','무궁화','새마을','고속버스','시외버스','공항버스','리무진','기차','항공','air','airlines','에어','비행기','ferry','선박','주유','gs칼텍스','sk에너지','현대오일뱅크','s-oil','솔라','충전','ev','전기차','톨게이트','하이패스','주차','파킹','도시철도','지하철공사','도로공사'],
+  '온라인쇼핑': ['쿠팡','네이버페이','마켓컬리','컬리페이','11번가','지마켓','옥션','위메프','티몬','인터파크','무신사','29cm','에이블리','브랜디','지그재그','카카오','카카오선물','배민스토어','오늘의집','zigzag','musinsa','amazon','아마존','알리','테무','shein','쉬인','aliexpress'],
+  '대형마트': ['코스트코','이마트','롯데마트','홈플러스','트레이더스','메가마트','하나로마트','농협하나로','킴스클럽'],
+  '편의점': ['gs25','cu','seven eleven','세븐일레븐','이마트24','미니스톱','스토리웨이','with me'],
+  '의료/건강': ['약국','병원','의원','치과','한의원','의료','검진','건강','정형','피부과','내과','외과','산부인과','소아과','안과','이비인후과','비뇨기과','신경','정신','재활','물리치료','마사지','스파','요가','필라테스','헬스','gym','fitness','올리브영','왓슨스','랄라블라','다이소건강','비타민','영양제','보건'],
+  '문화/여가': ['영화','cgv','메가박스','롯데시네마','씨네','극장','공연','뮤지컬','연극','콘서트','전시','박물관','미술관','갤러리','독서실','스터디','교보','서점','yes24','알라딘','반디앤루니스','책','도서','넷플릭스','왓챠','티빙','wavve','디즈니','유튜브프리미엄','멜론','지니','플로','스포티파이','게임','스팀','닌텐도','플스','pc방','노래방','볼링','당구','탁구','테니스','골프','수영','스쿼시','클라이밍','스키','보드','서핑','시설공단','체육관','스포츠'],
+  '미용': ['바버','바버샵','헤어','미용실','살롱','네일','속눈썹','왁싱','피부관리','에스테틱','spa','스파','이발'],
+  '생활': ['통신','sk텔레콤','kt','lg유플러스','알뜰폰','전기','가스','수도','관리비','아파트','보험','세탁','세탁소','코인세탁','청소','이사','렌탈','정수기','비데','인터넷','tv수신료','문구','학원','교육','어린이집','유치원','학교','과외'],
+  '쇼핑': ['롯데쇼핑','신세계','현대백화점','갤러리아','aia','lotte','shinsegae','백화점','아울렛','면세점','명품','루이비통','샤넬','구찌','프라다','버버리','발렌시아가','생로랑','보테가','셀린느','지방시','발망','톰포드','tom ford','dior','lv','hermes','에르메스','까르띠에','불가리','티파니','애플','apple','삼성','lg전자','소니','나이키','아디다스','뉴발란스','반스','컨버스','zara','h&m','유니클로','무인양품','gap','mango','cos','arket','편집샵','올세인츠'],
+};
+
+function classify(name) {
+  const n = (name||'').toLowerCase();
+  for (const [cat, kws] of Object.entries(RULES)) {
+    if (kws.some(k => n.includes(k.toLowerCase()))) return { cat, certain: true };
+  }
+  return { cat: '기타', certain: false };
+}
+
+function fmt(n) { return Math.round(n).toLocaleString('ko-KR') + '원'; }
+function fmtDate(s) { return s.replace(/(\d{4})년\s*(\d{2})월\s*(\d{2})일/, '$1.$2.$3'); }
+
+// ===== 탭 전환 =====
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
+  if (idx === 2) renderMonthlyStats();
+}
+
+// ===== 탭1 =====
+let currentType = 'income', currentWho = 'me', whoFilter = 'all', allTxs = [];
+document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+
+function setWho(who) {
+  currentWho = who;
+  document.getElementById('who-me').className = 'who-btn'+(who==='me'?' active-me':'');
+  document.getElementById('who-wife').className = 'who-btn'+(who==='wife'?' active-wife':'');
+  document.getElementById('who-common').className = 'who-btn'+(who==='common'?' active-common':'');
+}
+function setType(type) {
+  currentType = type;
+  document.getElementById('btn-income').classList.toggle('active', type==='income');
+  document.getElementById('btn-expense').classList.toggle('active', type==='expense');
+  document.getElementById('submit-btn').className = 'submit-btn ' + type;
+}
+function setWhoFilter(who, btn) {
+  whoFilter = who;
+  btn.closest('.filter-row').querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTransactions(allTxs);
+}
+
+async function addTransaction() {
+  if (!window.dbRef) { alert('firebase 연결 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  const amount = parseInt(document.getElementById('input-amount').value);
+  const desc = document.getElementById('input-desc').value.trim();
+  const category = document.getElementById('input-category').value;
+  const date = document.getElementById('input-date').value;
+  if (!amount || !desc || !date) { alert('금액, 적요, 날짜를 모두 입력해주세요'); return; }
+  try {
+    await window.dbRef.addTx({ type: currentType, amount, desc, category, date, who: currentWho, createdAt: Date.now() });
+    document.getElementById('input-amount').value = '';
+    document.getElementById('input-desc').value = '';
+    document.getElementById('input-category').value = '';
+  } catch(e) { alert('저장 실패: ' + e.message); }
+}
+
+async function deleteTx(id) {
+  if (!confirm('삭제할까요?')) return;
+  try { await window.dbRef.deleteTx(id); } catch(e) { alert('삭제 실패: ' + e.message); }
+}
+
+function renderSummary(txs) {
+  const groups = { me: txs.filter(t=>t.who==='me'), wife: txs.filter(t=>t.who==='wife'), common: txs.filter(t=>t.who==='common') };
+  const labels = { me: 'jake', wife: 'nyozi', common: '공통' };
+  const colors = { me: '#3730a3', wife: '#9d174d', common: '#065f46' };
+  document.getElementById('summaryGrid').innerHTML = ['me','wife','common'].map(w => {
+    const g = groups[w];
+    const inc = g.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp = g.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    const bal = inc - exp;
+    return `<div class="summary-section">
+      <div class="who-lbl" style="color:${colors[w]}">${labels[w]}</div>
+      <div class="row"><span style="color:#9ca3af">수입</span><span class="val" style="color:#10b981">${fmt(inc)}</span></div>
+      <div class="row"><span style="color:#9ca3af">지출</span><span class="val" style="color:#ef4444">${fmt(exp)}</span></div>
+      <div class="balance-row"><span>잔액</span><span style="color:${bal>=0?'#10b981':'#ef4444'}">${(bal<0?'-':'')+fmt(Math.abs(bal))}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function renderTransactions(txs) {
+  allTxs = txs;
+  renderSummary(txs);
+  const filtered = whoFilter==='all' ? txs : txs.filter(t=>t.who===whoFilter);
+  const list = document.getElementById('tx-list');
+  if (!filtered.length) { list.innerHTML = '<div class="empty">아직 내역이 없어요</div>'; return; }
+  const whoColors = { me:'me', wife:'wife', common:'common' };
+  const whoLabels = { me:'jake', wife:'nyozi', common:'공통' };
+  list.innerHTML = filtered.map(t=>`
+    <div class="tx-item">
+      <div class="tx-left">
+        <div class="tx-dot" style="background:${t.type==='income'?'#10b981':'#ef4444'}"></div>
+        <div class="tx-info">
+          <div class="tx-desc">
+            <span>${t.desc}</span>
+            <span class="who-tag ${whoColors[t.who]||'me'}">${whoLabels[t.who]||'jake'}</span>
+            ${t.category?`<span class="cat-tag">${t.category}</span>`:''}
+          </div>
+          <div class="tx-meta">${t.date}</div>
+        </div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount" style="color:${t.type==='income'?'#10b981':'#ef4444'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+        <button class="del-btn" onclick="deleteTx('${t.id}')">×</button>
+      </div>
+    </div>`).join('');
+}
+
+// ===== 탭2: 명세서 =====
+let currentStatWho = 'me', pendingFiles = [], allStatTxs = [], statActiveFilter = '전체', donutChart = null;
+let customCats = {}; // store → category 사용자 지정
+
+function setStatWho(who) {
+  currentStatWho = who;
+  document.getElementById('stat-who-me').className = 'who-btn'+(who==='me'?' active-me':'');
+  document.getElementById('stat-who-wife').className = 'who-btn'+(who==='wife'?' active-wife':'');
+  document.getElementById('stat-who-common').className = 'who-btn'+(who==='common'?' active-common':'');
+}
+
+
+// 우리카드 xls (바이너리) 파서 - SheetJS 사용
+function parseWooriXLS(buffer) {
+  try {
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    let hIdx = rows.findIndex(r => r.some(c => String(c).includes('가맹점')));
+    if (hIdx === -1) return null;
+    const headers = rows[hIdx].map(c => String(c).trim());
+    const iStore = headers.findIndex(h => h.includes('가맹점'));
+    const iAmt = headers.findIndex(h => h.includes('승인금액') || h.includes('이용금액'));
+    const iDate = headers.findIndex(h => h.includes('접수일') || h.includes('이용일') || h.includes('거래일'));
+    if (iStore === -1 || iAmt === -1) return null;
+    let period = null;
+    for (const row of rows.slice(0, hIdx)) {
+      for (const cell of row) {
+        const m = String(cell).match(/(\d{4})[\/\-](\d{2})/);
+        if (m) { period = m[1] + '-' + m[2]; break; }
+      }
+      if (period) break;
+    }
+    const txs = rows.slice(hIdx + 1).map(row => {
+      const store = String(row[iStore] || '').trim();
+      const amtRaw = String(row[iAmt] || '0').replace(/[^0-9]/g, '');
+      const amount = parseInt(amtRaw) || 0;
+      const dateRaw = iDate >= 0 ? String(row[iDate] || '') : '';
+      const dm = dateRaw.match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+      const date = dm ? dm[1]+'년 '+dm[2]+'월 '+dm[3]+'일' : dateRaw;
+      const custom = customCats[store];
+      const result = custom ? { cat: custom, certain: true } : classify(store);
+      return { date, store, amount, category: result.cat, certain: result.certain };
+    }).filter(t => t.store && t.amount > 0 && !t.store.includes('합계'));
+    return { txs, period };
+  } catch(e) { return null; }
+}
+
+function parseHyundaiHTML(text) {
+  const fixed = text.replace(/<\/t([dh])\s+>/gi, '</t$1>');
+  const periodMatch = text.match(/(\d{4})년\s*(\d{2})월\s*이용대금명세서/);
+  const period = periodMatch ? `${periodMatch[1]}-${periodMatch[2]}` : null;
+  const rowMatches = [...fixed.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)];
+  const allRows = rowMatches.map(m => {
+    const cells = [...m[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)];
+    return cells.map(c => c[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim());
+  }).filter(r => r.length > 0);
+  const hIdx = allRows.findIndex(r => r.includes('이용일') && r.includes('이용가맹점'));
+  if (hIdx === -1) return null;
+  const headers = allRows[hIdx];
+  const iDate=headers.indexOf('이용일'), iStore=headers.indexOf('이용가맹점'), iAmt=headers.indexOf('이용금액');
+  const txs = allRows.slice(hIdx+1).map(row => {
+    const store = row[iStore]||'';
+    const custom = customCats[store];
+    const result = custom ? { cat: custom, certain: true } : classify(store);
+    return { date: row[iDate]||'', store, amount: parseInt((row[iAmt]||'0').replace(/[^0-9]/g,''))||0, category: result.cat, certain: result.certain };
+  }).filter(t => t.store && t.amount > 0);
+  return { txs, period };
+}
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  Array.from(e.target.files).forEach(f => {
+    if (!pendingFiles.find(p=>p.name===f.name)) pendingFiles.push({ file:f, name:f.name, period:null, count:0 });
+  });
+  e.target.value = '';
+  renderFileList();
+});
+
+function removeFile(name) { pendingFiles = pendingFiles.filter(p=>p.name!==name); renderFileList(); }
+
+function renderFileList() {
+  document.getElementById('uploadedFiles').innerHTML = pendingFiles.map(p=>`
+    <div class="uploaded-file">
+      <div><div class="file-name">${p.name}</div><div class="file-meta">${p.period?p.period+' · '+p.count+'건':'대기 중'}</div></div>
+      <button class="file-remove" onclick="removeFile('${p.name}')">×</button>
+    </div>`).join('');
+  document.getElementById('analyzeBtn').disabled = pendingFiles.length === 0;
+}
+
+async function analyzeAll() {
+  document.getElementById('errorMsg').textContent = '';
+  const results = [];
+  for (const pf of pendingFiles) {
+    try {
+      const arrBuf = await pf.file.arrayBuffer();
+      const magic = new Uint8Array(arrBuf.slice(0, 4));
+      const isRealXLS = magic[0] === 0xD0 && magic[1] === 0xCF;
+      let parsed = null;
+      if (isRealXLS) {
+        parsed = parseWooriXLS(new Uint8Array(arrBuf));
+      } else {
+        const text = await pf.file.text();
+        parsed = parseHyundaiHTML(text);
+      }
+      if (!parsed||!parsed.txs.length) throw new Error(`${pf.name}: 내역을 찾지 못했어요`);
+      pf.period = parsed.period||'날짜불명'; pf.count = parsed.txs.length;
+      results.push(...parsed.txs.map(t=>({...t, who:currentStatWho, period:pf.period, source:pf.name})));
+    } catch(err) { document.getElementById('errorMsg').textContent = err.message; return; }
+  }
+  renderFileList();
+  allStatTxs = results;
+  statActiveFilter = '전체';
+  renderAnalysis();
+  document.getElementById('analysis-result').style.display = '';
+}
+
+function renderAnalysis() {
+  const txs = allStatTxs;
+  const total = txs.reduce((s,t)=>s+t.amount,0);
+  const catTotals = {};
+  txs.forEach(t=>{ catTotals[t.category]=(catTotals[t.category]||0)+t.amount; });
+  const sorted = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const colorMap = Object.fromEntries(sorted.map(([c],i)=>[c,COLORS[i%COLORS.length]]));
+  const periods = [...new Set(txs.map(t=>t.period))].sort();
+  document.getElementById('periodBadges').innerHTML = periods.map(p=>`<span class="period-badge">${p}</span>`).join('');
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-item"><div class="stat-lbl">총 지출</div><div class="stat-val">${fmt(total)}</div></div>
+    <div class="stat-item"><div class="stat-lbl">거래 건수</div><div class="stat-val">${txs.length}건</div></div>
+    <div class="stat-item"><div class="stat-lbl">최다 지출</div><div class="stat-val" style="font-size:13px">${sorted[0]?.[0]||'-'}</div></div>
+    <div class="stat-item"><div class="stat-lbl">미분류</div><div class="stat-val">${txs.filter(t=>!t.certain).length}건</div></div>`;
+  document.getElementById('chartLegend').innerHTML = sorted.map(([cat,amt],i)=>
+    `<span class="legend-item"><span class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></span>${cat} ${Math.round(amt/total*100)}%</span>`).join('');
+  if (donutChart) donutChart.destroy();
+  donutChart = new Chart(document.getElementById('donut'), {
+    type: 'doughnut',
+    data: { labels: sorted.map(x=>x[0]), datasets: [{ data: sorted.map(x=>x[1]), backgroundColor: COLORS.slice(0,sorted.length), borderWidth:2, borderColor:'#fff' }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>` ${ctx.label}: ${fmt(ctx.raw)}` }}}}
+  });
+  document.getElementById('catBars').innerHTML = sorted.map(([cat,amt],i)=>`
+    <div class="cat-bar-row">
+      <div class="cat-bar-label">${cat}</div>
+      <div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${Math.round(amt/total*100)}%;background:${COLORS[i%COLORS.length]}"></div></div>
+      <div class="cat-bar-amt">${fmt(amt)}</div>
+    </div>`).join('');
+  document.getElementById('filterBtns').innerHTML = ['전체',...sorted.map(x=>x[0])].map(c=>
+    `<button class="pill-btn${c===statActiveFilter?' active':''}" onclick="setStatFilter('${c}',this)">${c}</button>`).join('');
+  renderStatTable(colorMap);
+}
+
+function setStatFilter(cat, btn) {
+  statActiveFilter = cat;
+  btn.closest('.filter-row').querySelectorAll('.pill-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const catTotals = {};
+  allStatTxs.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount;});
+  renderStatTable(Object.fromEntries(Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).map(([c],i)=>[c,COLORS[i%COLORS.length]])));
+}
+
+function renderStatTable(colorMap) {
+  const filtered = statActiveFilter==='전체' ? allStatTxs : allStatTxs.filter(t=>t.category===statActiveFilter);
+  document.getElementById('txBody').innerHTML = !filtered.length
+    ? `<tr><td colspan="4" class="empty">내역 없음</td></tr>`
+    : filtered.map((t,idx)=>{
+        const color = colorMap[t.category]||'#6b7280';
+        const catCell = t.certain
+          ? `<span class="badge" style="background:${color}22;color:${color}">${t.category}</span>`
+          : `<span class="question-badge" onclick="openModal(${idx},'${t.store.replace(/'/g,"\\'")}')">? 선택</span>`;
+        return `<tr><td style="color:#9ca3af">${fmtDate(t.date)}</td><td>${t.store}</td><td>${catCell}</td><td class="amt-cell">${fmt(t.amount)}</td></tr>`;
+      }).join('');
+}
+
+// 카테고리 모달
+let modalIdx = null;
+function openModal(idx, store) {
+  modalIdx = idx;
+  document.getElementById('modalStore').textContent = store;
+  document.getElementById('catOptions').innerHTML = ALL_CATS.map(c=>
+    `<button class="cat-option" onclick="selectCat('${c}','${store.replace(/'/g,"\\'")}')">${c}</button>`).join('');
+  document.getElementById('catModal').classList.add('open');
+}
+function closeModal(e) {
+  if (e.target === document.getElementById('catModal')) document.getElementById('catModal').classList.remove('open');
+}
+function selectCat(cat, store) {
+  customCats[store] = cat;
+  if (modalIdx !== null && allStatTxs[modalIdx]) {
+    allStatTxs[modalIdx].category = cat;
+    allStatTxs[modalIdx].certain = true;
+  }
+  document.getElementById('catModal').classList.remove('open');
+  statActiveFilter = '전체';
+  renderAnalysis();
+}
+
+// ===== 탭3: 월별 통계 =====
+let statWhoFilter = 'all', selectedCats = new Set(), monthlyChartInst = null, catTrendChartInst = null;
+
+function setStatWhoFilter(who, btn) {
+  statWhoFilter = who;
+  btn.closest('.who-stat-toggle').querySelectorAll('.who-btn').forEach(b=>{ b.className='who-btn'; });
+  btn.className = 'who-btn active-me';
+  renderMonthlyStats();
+}
+
+function renderMonthlyStats() {
+  const txs = statWhoFilter==='all' ? allStatTxs : allStatTxs.filter(t=>t.who===statWhoFilter);
+  if (!txs.length) { document.getElementById('monthlyNoData').style.display=''; return; }
+  document.getElementById('monthlyNoData').style.display='none';
+  const monthTotals = {};
+  txs.forEach(t=>{ monthTotals[t.period]=(monthTotals[t.period]||0)+t.amount; });
+  const months = Object.keys(monthTotals).sort();
+  if (monthlyChartInst) monthlyChartInst.destroy();
+  monthlyChartInst = new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: { labels: months, datasets: [{ label: '지출', data: months.map(m=>monthTotals[m]), backgroundColor: '#6366f1', borderRadius: 6 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>` ${fmt(ctx.raw)}` }}}, scales:{ y:{ ticks:{ callback: v=>Math.round(v/10000)+'만' }}, x:{ ticks:{ autoSkip:false }}}}
+  });
+  const allCats = [...new Set(txs.map(t=>t.category))].sort();
+  if (!selectedCats.size) allCats.slice(0,4).forEach(c=>selectedCats.add(c));
+  document.getElementById('catFilterBtns').innerHTML = allCats.map(c=>
+    `<button class="pill-btn${selectedCats.has(c)?' active':''}" onclick="toggleCat('${c}',this)">${c}</button>`).join('');
+  renderCatTrendChart(txs, months, allCats);
+}
+
+function toggleCat(cat, btn) {
+  selectedCats.has(cat) ? selectedCats.delete(cat) : selectedCats.add(cat);
+  btn.classList.toggle('active');
+  const txs = statWhoFilter==='all' ? allStatTxs : allStatTxs.filter(t=>t.who===statWhoFilter);
+  const months = [...new Set(txs.map(t=>t.period))].sort();
+  const allCats = [...new Set(txs.map(t=>t.category))].sort();
+  renderCatTrendChart(txs, months, allCats);
+}
+
+function renderCatTrendChart(txs, months, allCats) {
+  const datasets = allCats.filter(c=>selectedCats.has(c)).map((cat,i) => ({
+    label: cat,
+    data: months.map(m=>txs.filter(t=>t.period===m&&t.category===cat).reduce((s,t)=>s+t.amount,0)),
+    borderColor: COLORS[allCats.indexOf(cat)%COLORS.length],
+    backgroundColor: COLORS[allCats.indexOf(cat)%COLORS.length]+'33',
+    tension: 0.3, fill: false, pointRadius: 4
+  }));
+  if (catTrendChartInst) catTrendChartInst.destroy();
+  catTrendChartInst = new Chart(document.getElementById('catTrendChart'), {
+    type: 'line',
+    data: { labels: months, datasets },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ tooltip:{ callbacks:{ label: ctx=>` ${ctx.dataset.label}: ${fmt(ctx.raw)}` }}}, scales:{ y:{ ticks:{ callback: v=>Math.round(v/10000)+'만' }}}}
+  });
+}
+</script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyC6hGxEn0af7uxoIljGS8n86_6mQofjROk",
+    authDomain: "expense-tracker-of-1508.firebaseapp.com",
+    projectId: "expense-tracker-of-1508",
+    storageBucket: "expense-tracker-of-1508.firebasestorage.app",
+    messagingSenderId: "474082890341",
+    appId: "1:474082890341:web:1eff3982472ba804536c8c"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window.dbRef = {
+    addTx: (data) => addDoc(collection(db, 'transactions'), data),
+    deleteTx: (id) => deleteDoc(doc(db, 'transactions', id))
+  };
+  const q = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
+  onSnapshot(q, (snapshot) => {
+    renderTransactions(snapshot.docs.map(d=>({ id:d.id, ...d.data() })));
+  });
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/가계부.html" }
+    { "source": "/", "destination": "/앱 버전 가계부.html" }
   ]
 }

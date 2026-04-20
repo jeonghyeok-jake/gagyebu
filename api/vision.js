@@ -9,6 +9,9 @@ export default async function handler(req, res) {
   }
 
   const apiKey = process.env.VISION_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'API key not configured' });
+  }
 
   const response = await fetch(
     `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
@@ -19,7 +22,6 @@ export default async function handler(req, res) {
         requests: [{
           image: { content: image },
           features: [
-            { type: 'TEXT_DETECTION', maxResults: 50 },
             { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }
           ]
         }]
@@ -29,13 +31,6 @@ export default async function handler(req, res) {
 
   const data = await response.json();
 
-  // 에러 체크
-  if (data.error) {
-    return res.status(400).json({ error: data.error.message });
-  }
-  if (data.responses && data.responses[0] && data.responses[0].error) {
-    return res.status(400).json({ error: data.responses[0].error.message });
-  }
-
+  // 전체 응답을 그대로 반환 (디버깅용)
   return res.status(200).json(data);
 }
